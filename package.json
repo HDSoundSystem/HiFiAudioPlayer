@@ -1,0 +1,36 @@
+{
+  "name": "hifiaudioplayer",
+  "version": "1.5.0",
+  "description": "Hifi Audio Player",
+  "homepage": "https://github.com/HDSoundSystem/HiFiAudioPlayer#readme",
+  "bugs": {
+    "url": "https://github.com/HDSoundSystem/HiFiAudioPlayer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HDSoundSystem/HiFiAudioPlayer.git"
+  },
+  "license": "MIT",
+  "author": "Yohann Zaoui",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.hdsoundsystem.hifiaudioplayer",
+    "win": {
+      "icon": "/img/favicon.ico",
+      "target": "portable"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
