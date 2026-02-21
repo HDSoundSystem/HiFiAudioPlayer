@@ -1,0 +1,28 @@
+# Dépendances (Le dossier le plus lourd, à ne JAMAIS commit)
+node_modules/
+
+# Logs de debug (Utile pour voir les erreurs, mais inutile sur Git)
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Dossiers de Build / Distribution (Générés par electron-builder ou electron-packager)
+dist/
+out/
+release/
+
+# Fichiers système et IDE
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Variables d'environnement (Si tu stockes des clés secrètes)
+.env
+.env.local
