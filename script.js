@@ -101,6 +101,9 @@ function setupVisualizer() {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
         draw();
+
+        // If EQ panel is open, setup EQ chain now
+        if (isEQOpen) setupEQ();
     } catch (e) {
         console.log("AudioContext blocked or already running");
     }
@@ -370,4 +373,300 @@ function clearPlaylist() {
     
     resetAB();
     console.log("HiFi Player: Reset complete.");
+}
+// ===================== EQ SYSTEM =====================
+const EQ_FREQS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+let eqFilters = [];
+let bassFilter = null, trebleFilter = null;
+let loudnessLow = null, loudnessMid = null, loudnessHigh = null;
+let isEQOpen = false;
+let isLoudness = false;
+let isEQSetup = false;
+
+function setupEQ() {
+    if (isEQSetup || !audioCtx) return;
+
+    // Create 10-band peaking EQ filters
+    EQ_FREQS.forEach((freq, i) => {
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = freq;
+        filter.Q.value = 1.4;
+        filter.gain.value = 0;
+        eqFilters.push(filter);
+    });
+
+    // Bass shelf
+    bassFilter = audioCtx.createBiquadFilter();
+    bassFilter.type = 'lowshelf';
+    bassFilter.frequency.value = 200;
+    bassFilter.gain.value = 0;
+
+    // Treble shelf
+    trebleFilter = audioCtx.createBiquadFilter();
+    trebleFilter.type = 'highshelf';
+    trebleFilter.frequency.value = 6000;
+    trebleFilter.gain.value = 0;
+
+    // Loudness filters (bypass by default)
+    loudnessLow = audioCtx.createBiquadFilter();
+    loudnessLow.type = 'lowshelf';
+    loudnessLow.frequency.value = 120;
+    loudnessLow.gain.value = 0;
+
+    loudnessHigh = audioCtx.createBiquadFilter();
+    loudnessHigh.type = 'highshelf';
+    loudnessHigh.frequency.value = 8000;
+    loudnessHigh.gain.value = 0;
+
+    // Reconnect audio chain: source → EQ bands → bass → treble → loudness → analyzer → dest
+    source.disconnect();
+    let chain = source;
+    eqFilters.forEach(f => { chain.connect(f); chain = f; });
+    chain.connect(bassFilter);
+    bassFilter.connect(trebleFilter);
+    trebleFilter.connect(loudnessLow);
+    loudnessLow.connect(loudnessHigh);
+    loudnessHigh.connect(analyzer);
+
+    isEQSetup = true;
+
+    // Bind 10-band sliders
+    EQ_FREQS.forEach((freq, i) => {
+        const slider = document.getElementById('eq-' + i);
+        slider.addEventListener('input', () => {
+            const val = parseFloat(slider.value);
+            eqFilters[i].gain.value = val;
+            document.getElementById('gain-label-' + i).innerText = val > 0 ? '+' + val : val;
+            // Désactiver le preset actif si modification manuelle
+            document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+            activePreset = null;
+            drawEQCurve();
+        });
+    });
+
+    // Bass control
+    document.getElementById('bass-ctrl').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        bassFilter.gain.value = val;
+        document.getElementById('bass-val').innerText = (val > 0 ? '+' : '') + val + ' dB';
+        drawEQCurve();
+    });
+
+    // Treble control
+    document.getElementById('treble-ctrl').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        trebleFilter.gain.value = val;
+        document.getElementById('treble-val').innerText = (val > 0 ? '+' : '') + val + ' dB';
+        drawEQCurve();
+    });
+
+    drawEQCurve();
+}
+
+function toggleEQ() {
+    isEQOpen = !isEQOpen;
+    const panel = document.getElementById('eq-panel');
+    const container = document.querySelector('.app-container');
+    const btn = document.getElementById('eq-btn');
+
+    panel.classList.toggle('open', isEQOpen);
+    container.classList.toggle('eq-open', isEQOpen);
+    btn.classList.toggle('vu-active', isEQOpen);
+
+    if (isEQOpen) {
+        if (!isVisualizerSetup) setupVisualizer();
+
+        // Attendre la fin de la transition CSS avant de dimensionner le canvas
+        panel.addEventListener('transitionend', function onTransitionEnd(e) {
+            if (e.propertyName !== 'width') return;
+            panel.removeEventListener('transitionend', onTransitionEnd);
+            setupEQ();
+            initEQCurveCanvas();
+            drawEQCurve();
+        });
+    }
+}
+
+function initEQCurveCanvas() {
+    const c = document.getElementById('eq-curve');
+    // Forcer le recalcul en réinitialisant width/height depuis les dimensions réelles
+    c.width = 0;
+    c.height = 0;
+    c.width = c.clientWidth || c.offsetWidth || 320;
+    c.height = c.clientHeight || c.offsetHeight || 90;
+}
+
+function drawEQCurve() {
+    const c = document.getElementById('eq-curve');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    [0.25, 0.5, 0.75].forEach(r => {
+        ctx.beginPath(); ctx.moveTo(0, H * r); ctx.lineTo(W, H * r); ctx.stroke();
+    });
+    // 0dB center line
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+
+    if (!isEQSetup) {
+        // Draw flat line if EQ not ready
+        ctx.strokeStyle = 'rgba(212,175,55,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+        return;
+    }
+
+    // Compute curve from filter gains
+    const gains = eqFilters.map(f => f.gain.value);
+    const bass = bassFilter ? bassFilter.gain.value : 0;
+    const treble = trebleFilter ? trebleFilter.gain.value : 0;
+    const loudLow = (isLoudness && loudnessLow) ? loudnessLow.gain.value : 0;
+    const loudHigh = (isLoudness && loudnessHigh) ? loudnessHigh.gain.value : 0;
+
+    // Sample frequency response at N points
+    const N = W;
+    const freqPoints = [];
+    for (let i = 0; i < N; i++) {
+        // Log scale: 20Hz to 20kHz
+        const freq = 20 * Math.pow(1000, i / (N - 1));
+        freqPoints.push(freq);
+    }
+
+    // Approximate gain at each frequency by summing filter contributions
+    function peakingGain(freq, centerFreq, Q, gainDb) {
+        const omega = 2 * Math.PI * freq;
+        const omegaC = 2 * Math.PI * centerFreq;
+        const ratio = freq / centerFreq;
+        const logRatio = Math.log10(ratio);
+        const bandwidthOctaves = 1 / Q;
+        const dist = logRatio / (bandwidthOctaves / 2);
+        return gainDb * Math.exp(-dist * dist * 0.7);
+    }
+    function shelfGain(freq, cutoff, gainDb, isHigh) {
+        const ratio = isHigh ? freq / cutoff : cutoff / freq;
+        return gainDb / (1 + Math.exp(-4 * (Math.log10(ratio))));
+    }
+
+    const curveGains = freqPoints.map(freq => {
+        let g = 0;
+        gains.forEach((gain, i) => { g += peakingGain(freq, EQ_FREQS[i], 1.4, gain); });
+        g += shelfGain(freq, 200, bass, false);
+        g += shelfGain(freq, 6000, treble, true);
+        if (isLoudness) {
+            g += shelfGain(freq, 120, loudLow, false);
+            g += shelfGain(freq, 8000, loudHigh, true);
+        }
+        return g;
+    });
+
+    // Draw filled area
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(212,175,55,0.35)');
+    grad.addColorStop(1, 'rgba(212,175,55,0.03)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, H / 2);
+    curveGains.forEach((g, i) => {
+        const x = i;
+        const y = H / 2 - (g / 12) * (H / 2 - 4);
+        if (i === 0) ctx.lineTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(W, H / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw curve line
+    const lineGrad = ctx.createLinearGradient(0, 0, W, 0);
+    lineGrad.addColorStop(0, '#8a6d1d');
+    lineGrad.addColorStop(0.5, '#d4af37');
+    lineGrad.addColorStop(1, '#f0c84a');
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    curveGains.forEach((g, i) => {
+        const x = i;
+        const y = H / 2 - (g / 12) * (H / 2 - 4);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+}
+
+function toggleLoudness() {
+    isLoudness = !isLoudness;
+    const btn = document.getElementById('loudness-btn');
+    btn.innerText = 'LOUDNESS: ' + (isLoudness ? 'ON' : 'OFF');
+    btn.classList.toggle('loudness-active', isLoudness);
+
+    if (loudnessLow && loudnessHigh) {
+        loudnessLow.gain.value = isLoudness ? 6 : 0;
+        loudnessHigh.gain.value = isLoudness ? 4 : 0;
+    }
+    drawEQCurve();
+}
+
+function resetEQ() {
+    EQ_FREQS.forEach((freq, i) => {
+        const slider = document.getElementById('eq-' + i);
+        slider.value = 0;
+        document.getElementById('gain-label-' + i).innerText = '0';
+        if (eqFilters[i]) eqFilters[i].gain.value = 0;
+    });
+    document.getElementById('bass-ctrl').value = 0;
+    document.getElementById('bass-val').innerText = '0 dB';
+    document.getElementById('treble-ctrl').value = 0;
+    document.getElementById('treble-val').innerText = '0 dB';
+    if (bassFilter) bassFilter.gain.value = 0;
+    if (trebleFilter) trebleFilter.gain.value = 0;
+
+    // Reset loudness
+    isLoudness = false;
+    const lBtn = document.getElementById('loudness-btn');
+    lBtn.innerText = 'LOUDNESS: OFF';
+    lBtn.classList.remove('loudness-active');
+    if (loudnessLow) loudnessLow.gain.value = 0;
+    if (loudnessHigh) loudnessHigh.gain.value = 0;
+
+    // Reset preset highlight
+    document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+    activePreset = null;
+
+    drawEQCurve();
+}
+
+// ===================== EQ PRESETS =====================
+const EQ_PRESETS = {
+    'POP':     [ -1,  1,  3,  4,  3,  1,  0,  1,  2,  2],
+    'ROCK':    [  4,  3,  2,  0, -1, -1,  2,  4,  5,  5],
+    'JAZZ':    [  3,  2,  1,  2,  0,  0, -1, -1,  1,  2],
+    'CLASSIC': [  4,  3,  2,  1,  0,  0,  0,  1,  2,  3],
+    'LIVE':    [ -2,  0,  2,  3,  3,  2,  2,  2,  2,  1],
+};
+
+let activePreset = null;
+
+function applyPreset(name) {
+    const gains = EQ_PRESETS[name];
+    if (!gains) return;
+
+    // Update sliders + filters
+    gains.forEach((gain, i) => {
+        const slider = document.getElementById('eq-' + i);
+        slider.value = gain;
+        document.getElementById('gain-label-' + i).innerText = gain > 0 ? '+' + gain : gain;
+        if (eqFilters[i]) eqFilters[i].gain.value = gain;
+    });
+
+    // Highlight active preset button
+    document.querySelectorAll('.eq-preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === name);
+    });
+    activePreset = name;
+    drawEQCurve();
 }
