@@ -35,8 +35,10 @@ window.onload = () => {
 };
 
 function updateVolumeUI(vol) {
-    volumeBar.style.width = (vol * 100) + '%';
+    const pct = (vol * 100) + '%';
+    volumeBar.style.width = pct;
     document.getElementById('volume-percent').innerText = Math.round(vol * 100) + '%';
+    document.getElementById('volume-container').style.setProperty('--vol-thumb', pct);
 }
 
 // --- NAVIGATION LOGIC ---
@@ -306,14 +308,40 @@ document.getElementById('progress-container').onclick = (e) => {
     player.currentTime = pos * player.duration;
 };
 
-document.getElementById('volume-container').onclick = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    let vol = (e.clientX - rect.left) / rect.width;
-    vol = Math.max(0, Math.min(1, vol));
-    player.volume = vol;
-    updateVolumeUI(vol);
-    localStorage.setItem('hifi-volume', vol); // Save preference
-};
+// --- VOLUME SLIDER (click + drag fluide) ---
+(function() {
+    const volumeContainer = document.getElementById('volume-container');
+    let isDragging = false;
+
+    function setVolumeFromEvent(e) {
+        const rect = volumeContainer.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let vol = (clientX - rect.left) / rect.width;
+        vol = Math.max(0, Math.min(1, vol));
+        player.volume = vol;
+        updateVolumeUI(vol);
+        localStorage.setItem('hifi-volume', vol);
+    }
+
+    volumeContainer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        setVolumeFromEvent(e);
+    });
+    volumeContainer.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        setVolumeFromEvent(e);
+    }, { passive: true });
+
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) setVolumeFromEvent(e);
+    });
+    document.addEventListener('touchmove', (e) => {
+        if (isDragging) setVolumeFromEvent(e);
+    }, { passive: true });
+
+    document.addEventListener('mouseup', () => { isDragging = false; });
+    document.addEventListener('touchend', () => { isDragging = false; });
+})();
 
 /**
  * FIXED CLEAR FUNCTION

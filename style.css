@@ -55,6 +55,10 @@ body {
 .hifi-font { font-size: 10px; font-weight: 800; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
 
 .progress-container, .volume-container { width: 100%; background: #000; height: 6px; border-radius: 10px; cursor: pointer; margin: 10px 0; position: relative; overflow: hidden; }
+.volume-container { overflow: visible; cursor: grab; transform-origin: center; transition: transform 0.15s ease; }
+.volume-container:hover { transform: scaleY(1.5); }
+.volume-container:active { cursor: grabbing; transform: scaleY(1.8); }
+.volume-bar { transition: width 0.04s linear; border-radius: 10px; }
 .progress-bar, .volume-bar { height: 100%; background: var(--accent); position: absolute; }
 
 .main-actions { display: flex; align-items: center; justify-content: center; gap: 25px; margin: 15px 0; }
