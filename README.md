@@ -2,6 +2,8 @@
 
 A sleek, high-fidelity web-based audio station designed for desktop enthusiasts. This application offers a premium dark-themed interface with a golden "HiFi" aesthetic, professional-grade controls, and full PWA (Progressive Web App) support for a native desktop experience.
 
+<img width="1169" height="833" alt="A1" src="https://github.com/user-attachments/assets/40b9e5ad-39bc-4f1a-bd67-8625cfaaed8a" />
+
 ## ✨ Key Features
 
 ### 🎵 Playback & Navigation
@@ -98,3 +100,5 @@ Open the **EQ panel** with the **EQ** button — the interface expands dynamical
 7. **Equalizer**: Click **EQ** to open the equalizer panel. Choose a preset or manually adjust the 10 bands, Bass and Treble sliders. Use **LOUDNESS** for low-volume listening and **RESET** to return to flat.
 8. **Visualizer**: Toggle the spectrum analyser on or off with the **VU** button.
 9. **Queue**: Use the **CLEAR** button to reset the playlist.
+
+<img width="1546" height="829" alt="A2" src="https://github.com/user-attachments/assets/5a0221bf-05d3-419c-9bef-75b6654ed6b0" />
