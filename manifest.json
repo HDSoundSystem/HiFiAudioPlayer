@@ -2,7 +2,7 @@
   "name": "HiFi Audio Player",
   "short_name": "HiFiPlayer",
   "description": "HiFi Audio Player for PC/MAC",
-  "start_url": "index.html",
+  "start_url": "https://hdsoundsystem.github.io/HiFiAudioPlayer/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#d4af37",
